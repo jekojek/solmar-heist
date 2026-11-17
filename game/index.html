@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Solmar Heist — Open-World Crime in Solmar Bay</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0e1a24; font-family: 'Segoe UI', Arial, sans-serif; }
+  #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  #hud { position: fixed; inset: 0; pointer-events: none; color: #fff; display: none; }
+  #hud.on { display: block; }
+  .panel { background: rgba(8, 18, 28, 0.62); border: 1px solid rgba(255,255,255,0.16); border-radius: 10px; padding: 8px 12px; backdrop-filter: blur(2px); }
+  #stats { position: absolute; top: 14px; left: 14px; min-width: 230px; }
+  #stats .row { display: flex; align-items: center; gap: 8px; margin: 3px 0; font-weight: 700; text-shadow: 0 1px 3px #000; }
+  #healthbar { flex: 1; height: 12px; background: rgba(0,0,0,0.55); border-radius: 6px; overflow: hidden; }
+  #healthfill { height: 100%; width: 100%; background: linear-gradient(90deg, #37d67a, #9be15d); border-radius: 6px; }
+  #cash { color: #7dff9e; font-size: 18px; }
+  #ammo { color: #ffd76a; font-size: 14px; }
+  #wanted { position: absolute; top: 14px; right: 14px; font-size: 26px; letter-spacing: 4px; color: #ffd76a; text-shadow: 0 0 8px rgba(255,180,0,0.8), 0 2px 3px #000; }
+  #wanted .off { color: rgba(255,255,255,0.22); text-shadow: none; }
+  #objective { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); max-width: 46%; text-align: center; font-size: 15px; font-weight: 700; text-shadow: 0 1px 3px #000; }
+  #objective small { display: block; font-size: 11px; color: #ffd76a; letter-spacing: 2px; }
+  #minimap { position: absolute; left: 14px; bottom: 14px; border: 2px solid rgba(255,255,255,0.35); border-radius: 50%; background: rgba(6, 20, 30, 0.8); box-shadow: 0 2px 10px rgba(0,0,0,0.5); }
+  #speedo { position: absolute; right: 16px; bottom: 16px; text-align: right; font-weight: 800; text-shadow: 0 2px 4px #000; }
+  #speedo b { font-size: 34px; }
+  #speedo span { font-size: 13px; color: #cfe8ff; }
+  #speedo .carname { font-size: 13px; color: #ffd76a; }
+  #toast { position: absolute; bottom: 210px; left: 50%; transform: translateX(-50%); font-size: 17px; font-weight: 700; text-shadow: 0 1px 4px #000; opacity: 0; transition: opacity 0.25s; text-align: center; }
+  #toast.show { opacity: 1; }
+  #crosshair { position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px; display: none; }
+  #crosshair:before, #crosshair:after { content: ''; position: absolute; background: #fff; box-shadow: 0 0 3px #000; }
+  #crosshair:before { left: 10px; top: 0; width: 2px; height: 22px; }
+  #crosshair:after { left: 0; top: 10px; width: 22px; height: 2px; }
+  #damage { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, transparent 55%, rgba(255,0,0,0.55) 100%); opacity: 0; }
+  #hint { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); font-size: 13px; color: #dceeff; text-shadow: 0 1px 3px #000; background: rgba(8,18,28,0.55); padding: 5px 12px; border-radius: 8px; }
+  .screen { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; color: #fff; text-align: center; background: linear-gradient(180deg, rgba(6,20,34,0.25) 0%, rgba(6,20,34,0.78) 78%); z-index: 5; }
+  .screen.hidden { display: none; }
+  .screen h1 { font-size: 64px; margin: 0; letter-spacing: 3px; color: #ffd76a; text-shadow: 0 4px 0 #b3541e, 0 8px 24px rgba(0,0,0,0.8); font-style: italic; }
+  .screen h2 { font-size: 20px; margin: 6px 0 2px; color: #9be15d; letter-spacing: 4px; }
+  .screen p { max-width: 560px; font-size: 15px; line-height: 1.55; color: #e8f2ff; text-shadow: 0 1px 3px #000; }
+  .screen .story { font-style: italic; color: #ffd76a; }
+  .btn { pointer-events: auto; cursor: pointer; margin: 6px; padding: 12px 30px; font-size: 16px; font-weight: 800; letter-spacing: 1px; color: #10202e; background: linear-gradient(180deg, #ffd76a, #f5a623); border: none; border-radius: 10px; box-shadow: 0 4px 0 #b3541e, 0 6px 16px rgba(0,0,0,0.5); }
+  .btn:hover { filter: brightness(1.08); }
+  .btn.ghost { background: rgba(255,255,255,0.14); color: #fff; box-shadow: none; border: 1px solid rgba(255,255,255,0.4); }
+  .controls { font-size: 13px; color: #cfe8ff; line-height: 1.7; background: rgba(8,18,28,0.6); padding: 10px 18px; border-radius: 10px; margin-top: 10px; }
+  .controls b { color: #ffd76a; }
+  #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+</style>
+</head>
+<body>
+<canvas id="game" aria-label="Solmar Heist: explore the open city of Solmar Bay on foot and by car, take jobs from Mira Solano, and outrun the police"></canvas>
+<div id="hud">
+  <div id="stats" class="panel">
+    <div class="row"><span>♥</span><div id="healthbar"><div id="healthfill"></div></div><span id="healthnum">100</span></div>
+    <div class="row"><span id="cash">$0</span><span id="ammo"></span></div>
+  </div>
+  <div id="wanted"></div>
+  <div id="objective" class="panel"><small id="missionname"></small><span id="objectivetext"></span></div>
+  <canvas id="minimap" width="180" height="180"></canvas>
+  <div id="speedo"><div class="carname" id="carname"></div><b id="speed">0</b> <span>km/h</span></div>
+  <div id="toast"></div>
+  <div id="crosshair"></div>
+  <div id="hint">WASD move &amp; drive · Mouse camera · E enter/exit car · F punch / shoot · Q pistol · Space handbrake · P pause · M mute</div>
+</div>
+<div id="damage"></div>
+
+<div id="title" class="screen">
+  <h2>WELCOME TO</h2>
+  <h1>SOLMAR HEIST</h1>
+  <p class="story">Raka owes the fixer Mira Solano fifty thousand dollars. One last run of jobs across sun-soaked Solmar Bay — and the debt is gone. Or the police get him first.</p>
+  <p>An open-world crime game: explore the city on foot and by car, steal cars, outrun the police, and finish all three jobs for Mira.</p>
+  <div>
+    <button class="btn" id="btnStory">▶ START STORY</button>
+    <button class="btn ghost" id="btnFree">FREE ROAM</button>
+    <button class="btn ghost" id="btnContinue">CONTINUE</button>
+  </div>
+  <div class="controls"><b>WASD</b> move / drive &nbsp;·&nbsp; <b>Mouse</b> camera (click to lock) &nbsp;·&nbsp; <b>E</b> enter / exit car &nbsp;·&nbsp; <b>F</b> punch / shoot &nbsp;·&nbsp; <b>Q</b> draw pistol &nbsp;·&nbsp; <b>Space</b> handbrake &nbsp;·&nbsp; <b>N</b> next job &nbsp;·&nbsp; <b>P</b> pause &nbsp;·&nbsp; <b>M</b> mute</div>
+</div>
+
+<div id="pause" class="screen hidden">
+  <h1 style="font-size:44px">PAUSED</h1>
+  <p>Solmar Bay waits for no one. Well — right now it does.</p>
+  <div>
+    <button class="btn" id="btnResume">RESUME</button>
+    <button class="btn ghost" id="btnRestartMission">RESTART JOB</button>
+    <button class="btn ghost" id="btnSave">SAVE GAME</button>
+    <button class="btn ghost" id="btnQuit">QUIT TO TITLE</button>
+  </div>
+</div>
+
+<div id="missionEnd" class="screen hidden">
+  <h1 id="endTitle" style="font-size:44px">JOB DONE</h1>
+  <p id="endText"></p>
+  <div>
+    <button class="btn" id="btnNextMission">NEXT JOB</button>
+    <button class="btn ghost" id="btnKeepPlaying">KEEP PLAYING</button>
+  </div>
+</div>
+
+<div id="busted" class="screen hidden">
+  <h1 style="font-size:44px; color:#7db8ff">BUSTED!</h1>
+  <p id="bustedText">The Solmar Bay police hauled Raka in. Bail cost him some cash — but Mira still wants her money.</p>
+  <div><button class="btn" id="btnBustedOk">BACK ON THE STREETS</button></div>
+</div>
+
+<div id="wasted" class="screen hidden">
+  <h1 style="font-size:44px; color:#ff6a5e">WASTED</h1>
+  <p>Raka woke up in St. Marina Hospital, patched up and lighter in the wallet.</p>
+  <div><button class="btn" id="btnWastedOk">GET UP</button></div>
+</div>
+
+<p id="status" role="status" aria-live="polite"></p>
+<script src="./vendor/three.min.js"></script>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
